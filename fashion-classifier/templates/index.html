@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fashion Classifier</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            text-align: center; 
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 30px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .upload-area {
+            border: 2px dashed #ccc;
+            padding: 30px;
+            margin: 20px 0;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+        .upload-area:hover {
+            border-color: #666;
+        }
+        #preview {
+            max-width: 200px;
+            margin: 20px auto;
+            display: none;
+            border: 1px solid #eee;
+            border-radius: 4px;
+        }
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 8px;
+            text-align: left;
+            display: none;
+        }
+        .prediction {
+            margin: 15px 0;
+            padding: 15px;
+            background: white;
+            border-radius: 6px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .dress-highlight {
+            border-left: 4px solid #ff6b6b;
+            background: #fff5f5;
+        }
+        .confidence-bar {
+            height: 20px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+        .confidence-fill {
+            height: 100%;
+            background: #4CAF50;
+            width: 0%;
+            transition: width 0.5s ease-out;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .error {
+            color: #ff6b6b;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Fashion Item Classifier</h1>
+        <p>Upload an image of a clothing item to classify it</p>
+        
+        <div class="upload-area">
+            <input type="file" id="fileInput" accept="image/*" style="display: none;">
+            <button onclick="document.getElementById('fileInput').click()">Choose Image</button>
+            <p id="fileName" style="margin-top: 10px;"></p>
+            <img id="preview" src="#" alt="Preview">
+        </div>
+        
+        <button id="predictBtn" onclick="uploadImage()" disabled>Classify</button>
+        
+        <div id="result" class="result">
+            <h2>Results</h2>
+            <div id="predictionsContainer"></div>
+        </div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const predictBtn = document.getElementById('predictBtn');
+        const fileName = document.getElementById('fileName');
+        const preview = document.getElementById('preview');
+        
+        fileInput.addEventListener('change', function(e) {
+            if (e.target.files.length > 0) {
+                const file = e.target.files[0];
+                fileName.textContent = file.name;
+                preview.src = URL.createObjectURL(file);
+                preview.style.display = 'block';
+                predictBtn.disabled = false;
+            }
+        });
+        
+        function uploadImage() {
+            const file = fileInput.files[0];
+            if (!file) return;
+            
+            const resultDiv = document.getElementById('result');
+            const predictionsContainer = document.getElementById('predictionsContainer');
+            
+            // Show loading state
+            resultDiv.style.display = 'block';
+            predictionsContainer.innerHTML = '<p>Analyzing image...</p>';
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            fetch('/predict', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    predictionsContainer.innerHTML = `
+                        <p class="error">Error: ${data.error}</p>
+                    `;
+                    return;
+                }
+                
+                // Show top predicted class and confidence
+                let html = `
+                    <div class="prediction dress-highlight">
+                        <h3>Predicted Class: ${data.class}</h3>
+                        <p>Confidence: ${(data.confidence * 100).toFixed(1)}%</p>
+                    </div>
+                    <h4>All Predictions:</h4>
+                `;
+
+                // Iterate over all_predictions object properly
+                Object.entries(data.all_predictions).forEach(([className, confidence]) => {
+                    const confidencePercent = (confidence * 100).toFixed(1);
+                    html += `
+                        <div class="prediction ${className.toLowerCase() === 'dress' ? 'dress-highlight' : ''}">
+                            <h3>${className}</h3>
+                            <p>Confidence: ${confidencePercent}%</p>
+                            <div class="confidence-bar">
+                                <div class="confidence-fill" style="width: ${confidencePercent}%"></div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                predictionsContainer.innerHTML = html;
+
+                // Animate confidence bars after rendering
+                setTimeout(() => {
+                    document.querySelectorAll('.confidence-fill').forEach(bar => {
+                        bar.style.transition = 'width 1s ease-out';
+                    });
+                }, 100);
+            })
+            .catch(error => {
+                predictionsContainer.innerHTML = `
+                    <p class="error">Error: ${error.message}</p>
+                `;
+            });
+        }
+    </script>
+</body>
+</html>
